@@ -49,6 +49,7 @@ A robust, secure, and scalable Fantasy Football Web API built with FastAPI, Post
 
 2. **Install dependencies**
    ```bash
+   source venv/Scripts/activate  
    pip install -r requirements.txt
    ```
 
