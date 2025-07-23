@@ -34,7 +34,7 @@ class UserResponse(UserBase):
 class PlayerBase(BaseModel):
     name: str
     position: PlayerPosition
-    real_team: str  # Changed from 'team' to 'real_team' to be clearer
+    team: str  # Team name (e.g., "Manchester United")
     price: float
 
 class PlayerCreate(PlayerBase):
@@ -43,7 +43,7 @@ class PlayerCreate(PlayerBase):
 class PlayerUpdate(BaseModel):
     name: Optional[str] = None
     position: Optional[PlayerPosition] = None
-    real_team: Optional[str] = None
+    team: Optional[str] = None
     price: Optional[float] = None
     status: Optional[PlayerStatus] = None
     shirt_number: Optional[int] = None
@@ -108,7 +108,7 @@ class TeamPlayerDetailResponse(BaseModel):
     # Player details
     player_name: str
     player_position: PlayerPosition
-    player_real_team: str
+    player_team: str
     player_price: float
     player_total_points: int
     player_status: PlayerStatus
@@ -145,7 +145,7 @@ class LeagueBase(BaseModel):
 class LeagueCreate(LeagueBase):
     # Basic settings
     budget: Optional[float] = 100.0
-    max_players_per_real_team: Optional[int] = 3
+    max_players_per_team: Optional[int] = 3
     max_teams: Optional[int] = 20
     
     # Squad composition rules (configurable)
@@ -182,7 +182,7 @@ class LeagueUpdate(BaseModel):
     name: Optional[str] = None
     is_private: Optional[bool] = None
     budget: Optional[float] = None
-    max_players_per_real_team: Optional[int] = None
+    max_players_per_team: Optional[int] = None
     max_teams: Optional[int] = None
     
     # Squad composition
@@ -222,7 +222,7 @@ class LeagueResponse(LeagueBase):
     
     # All the configurable settings
     budget: float
-    max_players_per_real_team: int
+    max_players_per_team: int
     max_teams: int
     
     # Squad composition rules

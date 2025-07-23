@@ -56,9 +56,9 @@ class Player(Base):
     id = Column(Integer, primary_key=True, index=True)
     name = Column(String, nullable=False)
     position = Column(SQLEnum(PlayerPosition), nullable=False)
-    real_team = Column(String, nullable=False)  # Real football team (Manchester United, Liverpool, etc.)
-    price = Column(Float, nullable=False)  # Fantasy price (e.g., £12.5m)
-    total_points = Column(Integer, default=0)  # Season total fantasy points
+    team = Column(String, nullable=False)  
+    price = Column(Float, nullable=False)  
+    total_points = Column(Integer, default=0)  
     status = Column(SQLEnum(PlayerStatus), default=PlayerStatus.AVAILABLE)
     shirt_number = Column(Integer, nullable=True)
     created_at = Column(DateTime, default=func.now())
@@ -73,14 +73,14 @@ class Team(Base):
     __tablename__ = "teams"
     
     id = Column(Integer, primary_key=True, index=True)
-    name = Column(String, nullable=False)  # Fantasy team name (e.g., "Elite Fantasists")
+    name = Column(String, nullable=False)  
     user_id = Column(Integer, ForeignKey("users.id"), nullable=False)
-    league_id = Column(Integer, ForeignKey("leagues.id"), nullable=False)  # Which league this team is in
+    league_id = Column(Integer, ForeignKey("leagues.id"), nullable=False)  
     captain_id = Column(Integer, ForeignKey("players.id"), nullable=True)
     vice_captain_id = Column(Integer, ForeignKey("players.id"), nullable=True)
     weekly_points = Column(Integer, default=0)
     total_points = Column(Integer, default=0)
-    current_budget = Column(Float, default=100.0)  # Remaining budget after transfers
+    current_budget = Column(Float, default=100.0)  
     created_at = Column(DateTime, default=func.now())
     updated_at = Column(DateTime, default=func.now(), onupdate=func.now())
     
@@ -101,11 +101,11 @@ class TeamPlayer(Base):
     
     # Track when player joined/left the fantasy team (crucial for transfer history)
     joined_at = Column(DateTime, default=func.now())
-    left_at = Column(DateTime, nullable=True)  # NULL means still in team
-    purchase_price = Column(Float, nullable=False)  # Price when bought (for transfer calculations)
+    left_at = Column(DateTime, nullable=True)  
+    purchase_price = Column(Float, nullable=False)  
     
     # For gameweek selections
-    is_starter = Column(Boolean, default=True)  # Whether selected in starting 11 for current gameweek
+    is_starter = Column(Boolean, default=True) 
     
     # Relationships
     team = relationship("Team", back_populates="team_players")
@@ -132,8 +132,8 @@ class Fixture(Base):
     
     id = Column(Integer, primary_key=True, index=True)
     gameweek_id = Column(Integer, ForeignKey("gameweeks.id"), nullable=False)
-    home_team = Column(String, nullable=False)  # Real team name (e.g., "Manchester United")
-    away_team = Column(String, nullable=False)  # Real team name (e.g., "Liverpool")
+    home_team = Column(String, nullable=False) 
+    away_team = Column(String, nullable=False)  
     kickoff_time = Column(DateTime, nullable=False)
     
     # Match results (null until match finishes)
@@ -160,13 +160,13 @@ class PlayerStats(Base):
     minutes_played = Column(Integer, default=0)
     goals = Column(Integer, default=0)
     assists = Column(Integer, default=0)
-    clean_sheet = Column(Boolean, default=False)  # For defenders/goalkeepers
+    clean_sheet = Column(Boolean, default=False) 
     yellow_cards = Column(Integer, default=0)
     red_cards = Column(Integer, default=0)
     own_goals = Column(Integer, default=0)
-    penalty_saves = Column(Integer, default=0)  # For goalkeepers
+    penalty_saves = Column(Integer, default=0) 
     penalty_misses = Column(Integer, default=0)
-    saves = Column(Integer, default=0)  # For goalkeepers
+    saves = Column(Integer, default=0) 
     
     # Calculated fantasy points for this specific fixture
     fantasy_points = Column(Integer, default=0)
@@ -186,39 +186,39 @@ class League(Base):
     owner_id = Column(Integer, ForeignKey("users.id"), nullable=False)
     
     # League settings/rules (configurable by league owner)
-    budget = Column(Float, default=100.0)  # £100m default budget
-    max_players_per_real_team = Column(Integer, default=3)  # Max 3 from same real team
-    max_teams = Column(Integer, default=20)  # Max teams in league
+    budget = Column(Float, default=100.0) 
+    max_players_per_team = Column(Integer, default=3)  
+    max_teams = Column(Integer, default=20)  
     
     # Squad composition rules (configurable)
-    max_goalkeepers = Column(Integer, default=2)  # Usually 2
-    max_defenders = Column(Integer, default=5)    # Usually 5  
-    max_midfielders = Column(Integer, default=5)  # Usually 5
-    max_forwards = Column(Integer, default=3)     # Usually 3
-    total_squad_size = Column(Integer, default=15) # Total squad size
+    max_goalkeepers = Column(Integer, default=2) 
+    max_defenders = Column(Integer, default=5)    
+    max_midfielders = Column(Integer, default=5)  
+    max_forwards = Column(Integer, default=3)     
+    total_squad_size = Column(Integer, default=15) 
     
     # Transfer rules (configurable)
-    free_transfers_per_gameweek = Column(Integer, default=1)  # Free transfers each GW
-    transfer_penalty_points = Column(Integer, default=4)     # Points deducted for extra transfers
-    max_transfers_per_gameweek = Column(Integer, default=5)   # Max transfers in one gameweek
+    free_transfers_per_gameweek = Column(Integer, default=1)  
+    transfer_penalty_points = Column(Integer, default=4)     
+    max_transfers_per_gameweek = Column(Integer, default=5)  
     
     # Scoring system settings (configurable)
-    points_per_goal_forward = Column(Integer, default=4)      # Points for forward goals
-    points_per_goal_midfielder = Column(Integer, default=5)   # Points for midfielder goals  
-    points_per_goal_defender = Column(Integer, default=6)     # Points for defender goals
-    points_per_goal_goalkeeper = Column(Integer, default=6)   # Points for goalkeeper goals
-    points_per_assist = Column(Integer, default=3)           # Points for assists
-    points_per_clean_sheet = Column(Integer, default=4)      # Points for clean sheets (def/gk)
-    points_per_yellow_card = Column(Integer, default=-1)     # Points deducted for yellow cards
-    points_per_red_card = Column(Integer, default=-3)        # Points deducted for red cards
-    points_per_own_goal = Column(Integer, default=-2)        # Points deducted for own goals
-    points_per_penalty_save = Column(Integer, default=5)     # Points for penalty saves
-    points_per_penalty_miss = Column(Integer, default=-2)    # Points deducted for penalty misses
+    points_per_goal_forward = Column(Integer, default=4)     
+    points_per_goal_midfielder = Column(Integer, default=5)   
+    points_per_goal_defender = Column(Integer, default=6)     
+    points_per_goal_goalkeeper = Column(Integer, default=6)  
+    points_per_assist = Column(Integer, default=3)          
+    points_per_clean_sheet = Column(Integer, default=4)      
+    points_per_yellow_card = Column(Integer, default=-1)     
+    points_per_red_card = Column(Integer, default=-3)        
+    points_per_own_goal = Column(Integer, default=-2)       
+    points_per_penalty_save = Column(Integer, default=5)    
+    points_per_penalty_miss = Column(Integer, default=-2)    
     
     # Special features (configurable)
-    allow_wildcards = Column(Boolean, default=True)          # Allow wildcard chips
-    allow_bench_boost = Column(Boolean, default=True)        # Allow bench boost chip
-    allow_triple_captain = Column(Boolean, default=True)     # Allow triple captain chip
+    allow_wildcards = Column(Boolean, default=True)          
+    allow_bench_boost = Column(Boolean, default=True)       
+    allow_triple_captain = Column(Boolean, default=True)     
     
     is_private = Column(Boolean, default=True)
     created_at = Column(DateTime, default=func.now())
@@ -226,7 +226,7 @@ class League(Base):
     
     # Relationships
     owner = relationship("User", back_populates="owned_leagues")
-    teams = relationship("Team", back_populates="league")  # Fantasy teams in this league
+    teams = relationship("Team", back_populates="league")  
     memberships = relationship("LeagueMembership", back_populates="league")
     gameweeks = relationship("Gameweek", secondary=gameweek_leagues, back_populates="leagues")
     standings = relationship("LeagueGameweekStanding", back_populates="league")
@@ -265,19 +265,19 @@ class Transfer(Base):
     
     id = Column(Integer, primary_key=True, index=True)
     team_id = Column(Integer, ForeignKey("teams.id"), nullable=False)
-    player_out_id = Column(Integer, ForeignKey("players.id"), nullable=False)  # Player being sold
-    player_in_id = Column(Integer, ForeignKey("players.id"), nullable=False)   # Player being bought
+    player_out_id = Column(Integer, ForeignKey("players.id"), nullable=False)  
+    player_in_id = Column(Integer, ForeignKey("players.id"), nullable=False)   
     gameweek_id = Column(Integer, ForeignKey("gameweeks.id"), nullable=False)
     
     # Transfer cost and pricing
-    points_cost = Column(Integer, default=0)  # Points deducted (0 for first transfer, 4 for subsequent)
-    money_out = Column(Float, nullable=False)  # Price of player being sold
-    money_in = Column(Float, nullable=False)   # Price of player being bought
-    money_change = Column(Float, nullable=False)  # Net money change (money_in - money_out)
+    points_cost = Column(Integer, default=0)  
+    money_out = Column(Float, nullable=False) 
+    money_in = Column(Float, nullable=False)   
+    money_change = Column(Float, nullable=False)  
     
     # Transfer tracking
-    is_free_transfer = Column(Boolean, default=True)  # Whether this was a free transfer
-    transfer_number_in_gameweek = Column(Integer, nullable=False)  # 1st, 2nd, 3rd transfer etc
+    is_free_transfer = Column(Boolean, default=True) 
+    transfer_number_in_gameweek = Column(Integer, nullable=False)  
     
     created_at = Column(DateTime, default=func.now())
     
@@ -294,7 +294,7 @@ class ChipUsage(Base):
     id = Column(Integer, primary_key=True, index=True)
     team_id = Column(Integer, ForeignKey("teams.id"), nullable=False)
     gameweek_id = Column(Integer, ForeignKey("gameweeks.id"), nullable=False)
-    chip_type = Column(String, nullable=False)  # 'wildcard', 'bench_boost', 'triple_captain', 'free_hit'
+    chip_type = Column(String, nullable=False)  
     created_at = Column(DateTime, default=func.now())
     
     # Relationships
