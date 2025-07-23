@@ -49,7 +49,6 @@ A robust, secure, and scalable Fantasy Football Web API built with FastAPI, Post
 
 2. **Install dependencies**
    ```bash
-   source venv/Scripts/activate  
    pip install -r requirements.txt
    ```
 
@@ -205,9 +204,9 @@ When the application is running, you can access:
 - **PlayerStats**: Individual player performance data
 
 ### Relationships
-- Users can have one team in each leauge 
+- Users can have multiple teams
 - Teams belong to users and contain players
-- Each player can be in one team in a leauge 
+- Players can be in multiple teams
 - Leagues contain multiple users
 - Gameweeks contain multiple fixtures
 - Fixtures contain player statistics

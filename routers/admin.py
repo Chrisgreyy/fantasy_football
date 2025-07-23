@@ -1,288 +1,288 @@
+"""
+Admin router for fantasy football API
+Provides admin-only endpoints for managing players, gameweeks, and system data
+"""
+
 from fastapi import APIRouter, Depends, HTTPException, status
 from sqlalchemy.orm import Session
-from sqlalchemy import desc
-from typing import List
+from typing import List, Optional
 from database import get_db
-from models import User, AuditLog, Team, Player, League, Gameweek, PlayerStats, TeamPlayer, UserRole
-from schemas import AuditLogResponse, UserResponse, LeaderboardResponse, LeaderboardEntry, UserCreate
-from auth import get_current_admin_user, get_password_hash
+from models import (
+    User, Player, Gameweek, PlayerStats, Fixture,
+    UserRole, GameweekStatus, PlayerPosition, PlayerStatus
+)
+from schemas import (
+    PlayerResponse, PlayerCreate, UserResponse, 
+    GameweekResponse, FixtureResponse, FixtureCreate,
+    PlayerStatsCreate, PlayerStatsResponse
+)
+from auth import get_current_active_user
+from datetime import datetime
 
-router = APIRouter()
+router = APIRouter(prefix="/admin", tags=["Admin"])
 
-@router.post("/create-admin", response_model=UserResponse)
-async def create_admin_user(
-    user: UserCreate,
-    db: Session = Depends(get_db)
+def require_admin(current_user: User = Depends(get_current_active_user)):
+    """Ensure the current user is an admin"""
+    if current_user.role != UserRole.ADMIN:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Admin access required"
+        )
+    return current_user
+
+@router.get("/users", response_model=List[UserResponse])
+def get_all_users(
+    db: Session = Depends(get_db),
+    admin_user: User = Depends(require_admin)
 ):
-    """Create a new admin user (unprotected route)."""
-    # Check if user already exists
-    existing_user = db.query(User).filter(User.email == user.email).first()
-    if existing_user:
+    """Get all users in the system (admin only)"""
+    return db.query(User).all()
+
+@router.post("/players", response_model=PlayerResponse)
+def create_player(
+    player_data: PlayerCreate,
+    db: Session = Depends(get_db),
+    admin_user: User = Depends(require_admin)
+):
+    """Create a new player (admin only)"""
+    
+    # Check if player already exists
+    existing = db.query(Player).filter(
+        Player.name == player_data.name,
+        Player.real_team == player_data.real_team
+    ).first()
+    
+    if existing:
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
-            detail="Email already registered"
+            detail="Player already exists in this team"
         )
     
-    # Create new admin user
-    db_user = User(
-        name=user.name,
-        email=user.email,
-        password_hash=get_password_hash(user.password),
-        role=UserRole.ADMIN
-    )
-    
-    db.add(db_user)
+    player = Player(**player_data.dict())
+    db.add(player)
     db.commit()
-    db.refresh(db_user)
+    db.refresh(player)
     
-    # Log the action
-    audit_log = AuditLog(
-        user_id=db_user.id,
-        action="create_admin",
-        resource_type="user",
-        resource_id=db_user.id,
-        details=f"Admin user {db_user.name} created"
-    )
-    db.add(audit_log)
-    db.commit()
-    
-    return db_user
+    return player
 
-@router.get("/users/{user_id}/activity", response_model=List[AuditLogResponse])
-async def get_user_activity(
-    user_id: int,
-    skip: int = 0,
-    limit: int = 100,
+@router.get("/players", response_model=List[PlayerResponse])
+def get_all_players(
+    real_team: Optional[str] = None,
+    position: Optional[PlayerPosition] = None,
     db: Session = Depends(get_db),
-    current_user: User = Depends(get_current_admin_user)
+    admin_user: User = Depends(require_admin)
 ):
-    """Get user activity logs (admin only)."""
-    user = db.query(User).filter(User.id == user_id).first()
-    if not user:
+    """Get all players with optional filters (admin only)"""
+    
+    query = db.query(Player)
+    
+    if real_team:
+        query = query.filter(Player.real_team == real_team)
+    
+    if position:
+        query = query.filter(Player.position == position)
+    
+    return query.all()
+
+@router.put("/players/{player_id}/price")
+def update_player_price(
+    player_id: int,
+    new_price: float,
+    db: Session = Depends(get_db),
+    admin_user: User = Depends(require_admin)
+):
+    """Update a player's price (admin only)"""
+    
+    player = db.query(Player).filter(Player.id == player_id).first()
+    if not player:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
-            detail="User not found"
+            detail="Player not found"
         )
     
-    logs = db.query(AuditLog).filter(
-        AuditLog.user_id == user_id
-    ).order_by(desc(AuditLog.timestamp)).offset(skip).limit(limit).all()
+    player.price = new_price
+    db.commit()
     
-    return logs
+    return {"message": f"Updated {player.name}'s price to £{new_price}m"}
 
-@router.get("/audit-logs", response_model=List[AuditLogResponse])
-async def get_audit_logs(
-    skip: int = 0,
-    limit: int = 100,
-    resource_type: str = None,
-    action: str = None,
+@router.post("/gameweeks", response_model=GameweekResponse)
+def create_gameweek(
+    number: int,
+    deadline: datetime,
     db: Session = Depends(get_db),
-    current_user: User = Depends(get_current_admin_user)
+    admin_user: User = Depends(require_admin)
 ):
-    """Get system audit logs (admin only)."""
-    query = db.query(AuditLog)
+    """Create a new gameweek (admin only)"""
     
-    if resource_type:
-        query = query.filter(AuditLog.resource_type == resource_type)
-    if action:
-        query = query.filter(AuditLog.action == action)
+    # Check if gameweek already exists
+    existing = db.query(Gameweek).filter(Gameweek.number == number).first()
+    if existing:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail=f"Gameweek {number} already exists"
+        )
     
-    logs = query.order_by(desc(AuditLog.timestamp)).offset(skip).limit(limit).all()
-    return logs
+    gameweek = Gameweek(
+        number=number,
+        deadline=deadline,
+        status=GameweekStatus.UPCOMING
+    )
+    db.add(gameweek)
+    db.commit()
+    db.refresh(gameweek)
+    
+    return gameweek
 
-@router.get("/stats/overview")
-async def get_system_stats(
+@router.put("/gameweeks/{gameweek_id}/status")
+def update_gameweek_status(
+    gameweek_id: int,
+    status: GameweekStatus,
     db: Session = Depends(get_db),
-    current_user: User = Depends(get_current_admin_user)
+    admin_user: User = Depends(require_admin)
 ):
-    """Get system overview stats (admin only)."""
-    stats = {
-        "total_users": db.query(User).count(),
-        "total_teams": db.query(Team).count(),
-        "total_players": db.query(Player).count(),
-        "total_leagues": db.query(League).count(),
-        "total_gameweeks": db.query(Gameweek).count(),
-        "active_gameweeks": db.query(Gameweek).filter(Gameweek.status == "active").count(),
-        "completed_fixtures": db.query(PlayerStats).count() > 0  # Simplified check
-    }
+    """Update gameweek status (admin only)"""
+    
+    gameweek = db.query(Gameweek).filter(Gameweek.id == gameweek_id).first()
+    if not gameweek:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Gameweek not found"
+        )
+    
+    gameweek.status = status
+    db.commit()
+    
+    return {"message": f"Updated gameweek {gameweek.number} status to {status.value}"}
+
+@router.post("/player-stats", response_model=PlayerStatsResponse)
+def create_player_stats(
+    stats_data: PlayerStatsCreate,
+    db: Session = Depends(get_db),
+    admin_user: User = Depends(require_admin)
+):
+    """Add player statistics for a gameweek (admin only)"""
+    
+    # Verify player exists
+    player = db.query(Player).filter(Player.id == stats_data.player_id).first()
+    if not player:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Player not found"
+        )
+    
+    # Verify gameweek exists
+    gameweek = db.query(Gameweek).filter(Gameweek.id == stats_data.gameweek_id).first()
+    if not gameweek:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Gameweek not found"
+        )
+    
+    # Check if stats already exist for this player/gameweek
+    existing = db.query(PlayerStats).filter(
+        PlayerStats.player_id == stats_data.player_id,
+        PlayerStats.gameweek_id == stats_data.gameweek_id
+    ).first()
+    
+    if existing:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Stats already exist for this player/gameweek"
+        )
+    
+    stats = PlayerStats(**stats_data.dict())
+    db.add(stats)
+    db.commit()
+    db.refresh(stats)
+    
     return stats
 
-@router.get("/leaderboard/global", response_model=LeaderboardResponse)
-async def get_global_leaderboard(
-    skip: int = 0,
-    limit: int = 100,
+@router.post("/fixtures", response_model=FixtureResponse)
+def create_fixture(
+    fixture_data: FixtureCreate,
     db: Session = Depends(get_db),
-    current_user: User = Depends(get_current_admin_user)
+    admin_user: User = Depends(require_admin)
 ):
-    """Get global leaderboard (admin only)."""
-    # Get leaderboard data
-    leaderboard_query = db.query(
-        User.id.label('user_id'),
-        User.name.label('user_name'),
-        Team.name.label('team_name'),
-        User.total_points.label('total_points')
-    ).join(
-        Team, Team.user_id == User.id
-    ).order_by(
-        desc(User.total_points)
-    ).offset(skip).limit(limit)
+    """Create a new fixture (admin only)"""
     
-    results = leaderboard_query.all()
+    # Verify gameweek exists
+    gameweek = db.query(Gameweek).filter(Gameweek.id == fixture_data.gameweek_id).first()
+    if not gameweek:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Gameweek not found"
+        )
     
-    # Add rankings
-    entries = []
-    for rank, result in enumerate(results, skip + 1):
-        entries.append(LeaderboardEntry(
-            user_id=result.user_id,
-            user_name=result.user_name,
-            team_name=result.team_name,
-            total_points=result.total_points,
-            rank=rank
-        ))
+    fixture = Fixture(**fixture_data.dict())
+    db.add(fixture)
+    db.commit()
+    db.refresh(fixture)
+    
+    return fixture
+
+@router.get("/fixtures", response_model=List[FixtureResponse])
+def get_fixtures(
+    gameweek_id: Optional[int] = None,
+    db: Session = Depends(get_db),
+    admin_user: User = Depends(require_admin)
+):
+    """Get all fixtures with optional gameweek filter (admin only)"""
+    
+    query = db.query(Fixture)
+    
+    if gameweek_id:
+        query = query.filter(Fixture.gameweek_id == gameweek_id)
+    
+    return query.all()
+
+@router.put("/fixtures/{fixture_id}/result")
+def update_fixture_result(
+    fixture_id: int,
+    home_score: int,
+    away_score: int,
+    db: Session = Depends(get_db),
+    admin_user: User = Depends(require_admin)
+):
+    """Update fixture result (admin only)"""
+    
+    fixture = db.query(Fixture).filter(Fixture.id == fixture_id).first()
+    if not fixture:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Fixture not found"
+        )
+    
+    fixture.home_score = home_score
+    fixture.away_score = away_score
+    db.commit()
+    
+    return {
+        "message": f"Updated fixture result: {fixture.home_team} {home_score}-{away_score} {fixture.away_team}"
+    }
+
+@router.get("/system/stats")
+def get_system_stats(
+    db: Session = Depends(get_db),
+    admin_user: User = Depends(require_admin)
+):
+    """Get system statistics (admin only)"""
     
     total_users = db.query(User).count()
+    total_players = db.query(Player).count()
+    total_gameweeks = db.query(Gameweek).count()
     
-    return LeaderboardResponse(
-        entries=entries,
-        total_users=total_users
-    )
-
-@router.post("/users/{user_id}/promote")
-async def promote_user_to_admin(
-    user_id: int,
-    db: Session = Depends(get_db),
-    current_user: User = Depends(get_current_admin_user)
-):
-    """Promote user to admin (admin only)."""
-    user = db.query(User).filter(User.id == user_id).first()
-    if not user:
-        raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND,
-            detail="User not found"
-        )
+    # Count players by position
+    from sqlalchemy import func
+    position_counts = db.query(
+        Player.position, 
+        func.count(Player.id)
+    ).group_by(Player.position).all()
     
-    user.role = UserRole.ADMIN
-    db.commit()
+    position_breakdown = {pos.value: count for pos, count in position_counts}
     
-    # Log the action
-    audit_log = AuditLog(
-        user_id=current_user.id,
-        action="promote_to_admin",
-        resource_type="user",
-        resource_id=user_id,
-        details=f"User {user.name} promoted to admin"
-    )
-    db.add(audit_log)
-    db.commit()
-    
-    return {"message": f"User {user.name} promoted to admin"}
-
-@router.post("/users/{user_id}/demote")
-async def demote_admin_to_user(
-    user_id: int,
-    db: Session = Depends(get_db),
-    current_user: User = Depends(get_current_admin_user)
-):
-    """Demote admin to regular user (admin only)."""
-    user = db.query(User).filter(User.id == user_id).first()
-    if not user:
-        raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND,
-            detail="User not found"
-        )
-    
-    if user.id == current_user.id:
-        raise HTTPException(
-            status_code=status.HTTP_400_BAD_REQUEST,
-            detail="Cannot demote yourself"
-        )
-    
-    user.role = UserRole.USER
-    db.commit()
-    
-    # Log the action
-    audit_log = AuditLog(
-        user_id=current_user.id,
-        action="demote_to_user",
-        resource_type="user",
-        resource_id=user_id,
-        details=f"User {user.name} demoted to regular user"
-    )
-    db.add(audit_log)
-    db.commit()
-    
-    return {"message": f"User {user.name} demoted to regular user"}
-
-@router.post("/recalculate-points")
-async def recalculate_all_points(
-    db: Session = Depends(get_db),
-    current_user: User = Depends(get_current_admin_user)
-):
-    """Recalculate all user and team points (admin only)."""
-    # Reset all points
-    db.query(User).update({User.total_points: 0})
-    db.query(Team).update({Team.total_points: 0, Team.weekly_points: 0})
-    db.query(Player).update({Player.total_points: 0})
-    
-    # Recalculate player points
-    player_stats = db.query(PlayerStats).all()
-    for stat in player_stats:
-        player = db.query(Player).filter(Player.id == stat.player_id).first()
-        if player:
-            player.total_points += stat.points
-    
-    # Recalculate team and user points
-    teams = db.query(Team).all()
-    for team in teams:
-        team_total = 0
-        team_players = db.query(TeamPlayer).filter(TeamPlayer.team_id == team.id).all()
-        
-        for team_player in team_players:
-            player = db.query(Player).filter(Player.id == team_player.player_id).first()
-            if player:
-                points = player.total_points
-                # Double points for captain
-                if team.captain_id == player.id:
-                    points *= 2
-                team_total += points
-        
-        team.total_points = team_total
-        team.weekly_points = team_total  # Simplified
-        
-        # Update user points
-        team.owner.total_points += team_total
-    
-    db.commit()
-    
-    # Log the action
-    audit_log = AuditLog(
-        user_id=current_user.id,
-        action="recalculate_points",
-        resource_type="system",
-        details="All points recalculated"
-    )
-    db.add(audit_log)
-    db.commit()
-    
-    return {"message": "All points recalculated successfully"}
-
-@router.post("/reset-gameweek-points")
-async def reset_weekly_points(
-    db: Session = Depends(get_db),
-    current_user: User = Depends(get_current_admin_user)
-):
-    """Reset weekly points for all teams (admin only)."""
-    db.query(Team).update({Team.weekly_points: 0})
-    db.commit()
-    
-    # Log the action
-    audit_log = AuditLog(
-        user_id=current_user.id,
-        action="reset_weekly_points",
-        resource_type="system",
-        details="Weekly points reset for all teams"
-    )
-    db.add(audit_log)
-    db.commit()
-    
-    return {"message": "Weekly points reset successfully"} 
+    return {
+        "total_users": total_users,
+        "total_players": total_players,
+        "total_gameweeks": total_gameweeks,
+        "position_breakdown": position_breakdown
+    }
