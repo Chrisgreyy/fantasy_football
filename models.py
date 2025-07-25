@@ -78,7 +78,6 @@ class Team(Base):
     league_id = Column(Integer, ForeignKey("leagues.id"), nullable=False)  
     captain_id = Column(Integer, ForeignKey("players.id"), nullable=True)
     vice_captain_id = Column(Integer, ForeignKey("players.id"), nullable=True)
-    weekly_points = Column(Integer, default=0)
     total_points = Column(Integer, default=0)
     current_budget = Column(Float, default=100.0)  
     created_at = Column(DateTime, default=func.now())
@@ -90,6 +89,7 @@ class Team(Base):
     captain = relationship("Player", foreign_keys=[captain_id])
     vice_captain = relationship("Player", foreign_keys=[vice_captain_id])
     team_players = relationship("TeamPlayer", back_populates="team")
+    gameweek_scores = relationship("TeamGameweekScore", back_populates="team")
 
 class TeamPlayer(Base):
     """Which real players are currently in a fantasy team's squad (max 15)"""
@@ -104,12 +104,10 @@ class TeamPlayer(Base):
     left_at = Column(DateTime, nullable=True)  
     purchase_price = Column(Float, nullable=False)  
     
-    # For gameweek selections
-    is_starter = Column(Boolean, default=True) 
-    
     # Relationships
     team = relationship("Team", back_populates="team_players")
     player = relationship("Player", back_populates="team_players")
+    selections = relationship("TeamPlayerSelection", back_populates="team_player")
 
 class Gameweek(Base):
     __tablename__ = "gameweeks"
@@ -314,3 +312,37 @@ class AuditLog(Base):
     
     # Relationships
     user = relationship("User", foreign_keys=[user_id]) 
+
+class TeamGameweekScore(Base):
+    """Track team's points for each gameweek"""
+    __tablename__ = "team_gameweek_scores"
+    
+    id = Column(Integer, primary_key=True, index=True)
+    team_id = Column(Integer, ForeignKey("teams.id"), nullable=False)
+    gameweek_id = Column(Integer, ForeignKey("gameweeks.id"), nullable=False)
+    points = Column(Integer, default=0)
+    bench_points = Column(Integer, default=0)  
+    captain_points = Column(Integer, default=0)  
+    chip_used = Column(String, nullable=True)  
+    transfers_made = Column(Integer, default=0)
+    transfer_cost = Column(Integer, default=0)
+    created_at = Column(DateTime, default=func.now())
+    
+    # Relationships
+    team = relationship("Team", back_populates="gameweek_scores")
+    gameweek = relationship("Gameweek")
+
+class TeamPlayerSelection(Base):
+    """Track player selection status for each gameweek"""
+    __tablename__ = "team_player_selections"
+    
+    id = Column(Integer, primary_key=True, index=True)
+    team_player_id = Column(Integer, ForeignKey("team_players.id"), nullable=False)
+    gameweek_id = Column(Integer, ForeignKey("gameweeks.id"), nullable=False)
+    is_starter = Column(Boolean, nullable=False)  # True if in starting 11, False if on bench
+    bench_position = Column(Integer, nullable=True)  # Position on bench (1-4) if benched
+    created_at = Column(DateTime, default=func.now())
+    
+    # Relationships
+    team_player = relationship("TeamPlayer", back_populates="selections")
+    gameweek = relationship("Gameweek")
