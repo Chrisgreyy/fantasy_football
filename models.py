@@ -339,8 +339,8 @@ class TeamPlayerSelection(Base):
     id = Column(Integer, primary_key=True, index=True)
     team_player_id = Column(Integer, ForeignKey("team_players.id"), nullable=False)
     gameweek_id = Column(Integer, ForeignKey("gameweeks.id"), nullable=False)
-    is_starter = Column(Boolean, nullable=False)  # True if in starting 11, False if on bench
-    bench_position = Column(Integer, nullable=True)  # Position on bench (1-4) if benched
+    is_starter = Column(Boolean, nullable=False)  
+    bench_position = Column(Integer, nullable=True)  
     created_at = Column(DateTime, default=func.now())
     
     # Relationships
