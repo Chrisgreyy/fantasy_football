@@ -17,9 +17,6 @@ def require_admin(current_user: User = Depends(get_current_active_user)):
         )
     return current_user
 
-# =============================================================================
-# PUBLIC ENDPOINTS - What users actually need to browse players
-# =============================================================================
 
 @router.get("/", response_model=List[PlayerResponse])
 async def get_players(
@@ -27,7 +24,7 @@ async def get_players(
     limit: int = 100,
     status: Optional[PlayerStatus] = Query(None, description="Filter by player status"),
     position: Optional[PlayerPosition] = Query(None, description="Filter by position"),
-    real_team: Optional[str] = Query(None, description="Filter by real team"),
+    team: Optional[str] = Query(None, description="Filter by real team"),
     sort: Optional[str] = Query("points", description="Sort by: points, name, price"),
     search: Optional[str] = Query(None, description="Search by player name"),
     db: Session = Depends(get_db),
@@ -45,8 +42,8 @@ async def get_players(
         query = query.filter(Player.status == status)
     if position:
         query = query.filter(Player.position == position)
-    if real_team:
-        query = query.filter(Player.real_team.ilike(f"%{real_team}%"))
+    if team:
+        query = query.filter(Player.team.ilike(f"%{team}%"))
     if search:
         query = query.filter(Player.name.ilike(f"%{search}%"))
     
@@ -115,7 +112,7 @@ async def get_player_performance_history(
     
     return {
         "player_name": player.name,
-        "real_team": player.real_team,
+        "team": player.team,
         "position": player.position.value,
         "season_total_points": player.total_points,
         "recent_performances": performance_history
@@ -145,7 +142,7 @@ async def create_player(
     db_player = Player(
         name=player.name,
         position=player.position,
-        real_team=player.real_team,
+        team=player.team,
         price=player.price,
         shirt_number=player.shirt_number
     )
@@ -173,8 +170,8 @@ async def update_player(
         player.name = player_update.name
     if player_update.position is not None:
         player.position = player_update.position
-    if player_update.real_team is not None:
-        player.real_team = player_update.real_team
+    if player_update.team is not None:
+        player.team = player_update.team
     if player_update.price is not None:
         player.price = player_update.price
     if player_update.status is not None:

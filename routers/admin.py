@@ -1,8 +1,3 @@
-"""
-Admin router for fantasy football API
-Provides admin-only endpoints for managing players, gameweeks, and system data
-"""
-
 from fastapi import APIRouter, Depends, HTTPException, status
 from sqlalchemy.orm import Session
 from typing import List, Optional
@@ -44,12 +39,18 @@ def create_player(
     db: Session = Depends(get_db),
     admin_user: User = Depends(require_admin)
 ):
-    """Create a new player (admin only)"""
+    """Create a new player (admin only)
+    Note: PlayerPosition is an enum with values like:
+    GOALKEEPER= "goalkeeper"
+    DEFENDER = "defender"
+    MIDFIELDER = "midfielder"
+    FORWARD = "forward"
+    """
     
     # Check if player already exists
     existing = db.query(Player).filter(
         Player.name == player_data.name,
-        Player.real_team == player_data.real_team
+        Player.team == player_data.team
     ).first()
     
     if existing:
@@ -67,7 +68,7 @@ def create_player(
 
 @router.get("/players", response_model=List[PlayerResponse])
 def get_all_players(
-    real_team: Optional[str] = None,
+    team: Optional[str] = None,
     position: Optional[PlayerPosition] = None,
     db: Session = Depends(get_db),
     admin_user: User = Depends(require_admin)
@@ -76,8 +77,8 @@ def get_all_players(
     
     query = db.query(Player)
     
-    if real_team:
-        query = query.filter(Player.real_team == real_team)
+    if team:
+        query = query.filter(Player.team == team)
     
     if position:
         query = query.filter(Player.position == position)

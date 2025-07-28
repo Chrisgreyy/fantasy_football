@@ -1,8 +1,8 @@
-"""Initial migration
+"""initial schema
 
-Revision ID: c9b6fd2a7d3e
+Revision ID: 6832055c452d
 Revises: 
-Create Date: 2025-07-20 21:27:00.089672
+Create Date: 2025-07-23 15:10:41.078820
 
 """
 from typing import Sequence, Union
@@ -12,7 +12,7 @@ import sqlalchemy as sa
 
 
 # revision identifiers, used by Alembic.
-revision: str = 'c9b6fd2a7d3e'
+revision: str = '6832055c452d'
 down_revision: Union[str, None] = None
 branch_labels: Union[str, Sequence[str], None] = None
 depends_on: Union[str, Sequence[str], None] = None
@@ -39,6 +39,7 @@ def upgrade() -> None:
     sa.Column('price', sa.Float(), nullable=False),
     sa.Column('total_points', sa.Integer(), nullable=True),
     sa.Column('status', sa.Enum('AVAILABLE', 'INJURED', 'SUSPENDED', 'UNAVAILABLE', name='playerstatus'), nullable=True),
+    sa.Column('shirt_number', sa.Integer(), nullable=True),
     sa.Column('created_at', sa.DateTime(), nullable=True),
     sa.Column('updated_at', sa.DateTime(), nullable=True),
     sa.PrimaryKeyConstraint('id')
@@ -70,11 +71,51 @@ def upgrade() -> None:
     sa.PrimaryKeyConstraint('id')
     )
     op.create_index(op.f('ix_audit_logs_id'), 'audit_logs', ['id'], unique=False)
+    op.create_table('fixtures',
+    sa.Column('id', sa.Integer(), nullable=False),
+    sa.Column('gameweek_id', sa.Integer(), nullable=False),
+    sa.Column('home_team', sa.String(), nullable=False),
+    sa.Column('away_team', sa.String(), nullable=False),
+    sa.Column('kickoff_time', sa.DateTime(), nullable=False),
+    sa.Column('home_score', sa.Integer(), nullable=True),
+    sa.Column('away_score', sa.Integer(), nullable=True),
+    sa.Column('completed', sa.Boolean(), nullable=True),
+    sa.Column('created_at', sa.DateTime(), nullable=True),
+    sa.Column('updated_at', sa.DateTime(), nullable=True),
+    sa.ForeignKeyConstraint(['gameweek_id'], ['gameweeks.id'], ),
+    sa.PrimaryKeyConstraint('id')
+    )
+    op.create_index(op.f('ix_fixtures_id'), 'fixtures', ['id'], unique=False)
     op.create_table('leagues',
     sa.Column('id', sa.Integer(), nullable=False),
     sa.Column('name', sa.String(), nullable=False),
     sa.Column('code', sa.String(), nullable=False),
     sa.Column('owner_id', sa.Integer(), nullable=False),
+    sa.Column('budget', sa.Float(), nullable=True),
+    sa.Column('max_players_per_team', sa.Integer(), nullable=True),
+    sa.Column('max_teams', sa.Integer(), nullable=True),
+    sa.Column('max_goalkeepers', sa.Integer(), nullable=True),
+    sa.Column('max_defenders', sa.Integer(), nullable=True),
+    sa.Column('max_midfielders', sa.Integer(), nullable=True),
+    sa.Column('max_forwards', sa.Integer(), nullable=True),
+    sa.Column('total_squad_size', sa.Integer(), nullable=True),
+    sa.Column('free_transfers_per_gameweek', sa.Integer(), nullable=True),
+    sa.Column('transfer_penalty_points', sa.Integer(), nullable=True),
+    sa.Column('max_transfers_per_gameweek', sa.Integer(), nullable=True),
+    sa.Column('points_per_goal_forward', sa.Integer(), nullable=True),
+    sa.Column('points_per_goal_midfielder', sa.Integer(), nullable=True),
+    sa.Column('points_per_goal_defender', sa.Integer(), nullable=True),
+    sa.Column('points_per_goal_goalkeeper', sa.Integer(), nullable=True),
+    sa.Column('points_per_assist', sa.Integer(), nullable=True),
+    sa.Column('points_per_clean_sheet', sa.Integer(), nullable=True),
+    sa.Column('points_per_yellow_card', sa.Integer(), nullable=True),
+    sa.Column('points_per_red_card', sa.Integer(), nullable=True),
+    sa.Column('points_per_own_goal', sa.Integer(), nullable=True),
+    sa.Column('points_per_penalty_save', sa.Integer(), nullable=True),
+    sa.Column('points_per_penalty_miss', sa.Integer(), nullable=True),
+    sa.Column('allow_wildcards', sa.Boolean(), nullable=True),
+    sa.Column('allow_bench_boost', sa.Boolean(), nullable=True),
+    sa.Column('allow_triple_captain', sa.Boolean(), nullable=True),
     sa.Column('is_private', sa.Boolean(), nullable=True),
     sa.Column('created_at', sa.DateTime(), nullable=True),
     sa.Column('updated_at', sa.DateTime(), nullable=True),
@@ -83,35 +124,6 @@ def upgrade() -> None:
     sa.UniqueConstraint('code')
     )
     op.create_index(op.f('ix_leagues_id'), 'leagues', ['id'], unique=False)
-    op.create_table('teams',
-    sa.Column('id', sa.Integer(), nullable=False),
-    sa.Column('name', sa.String(), nullable=False),
-    sa.Column('user_id', sa.Integer(), nullable=False),
-    sa.Column('captain_id', sa.Integer(), nullable=True),
-    sa.Column('weekly_points', sa.Integer(), nullable=True),
-    sa.Column('total_points', sa.Integer(), nullable=True),
-    sa.Column('created_at', sa.DateTime(), nullable=True),
-    sa.Column('updated_at', sa.DateTime(), nullable=True),
-    sa.ForeignKeyConstraint(['captain_id'], ['players.id'], ),
-    sa.ForeignKeyConstraint(['user_id'], ['users.id'], ),
-    sa.PrimaryKeyConstraint('id')
-    )
-    op.create_index(op.f('ix_teams_id'), 'teams', ['id'], unique=False)
-    op.create_table('fixtures',
-    sa.Column('id', sa.Integer(), nullable=False),
-    sa.Column('gameweek_id', sa.Integer(), nullable=False),
-    sa.Column('league_id', sa.Integer(), nullable=False),
-    sa.Column('home_team', sa.String(), nullable=False),
-    sa.Column('away_team', sa.String(), nullable=False),
-    sa.Column('date', sa.DateTime(), nullable=False),
-    sa.Column('completed', sa.Boolean(), nullable=True),
-    sa.Column('created_at', sa.DateTime(), nullable=True),
-    sa.Column('updated_at', sa.DateTime(), nullable=True),
-    sa.ForeignKeyConstraint(['gameweek_id'], ['gameweeks.id'], ),
-    sa.ForeignKeyConstraint(['league_id'], ['leagues.id'], ),
-    sa.PrimaryKeyConstraint('id')
-    )
-    op.create_index(op.f('ix_fixtures_id'), 'fixtures', ['id'], unique=False)
     op.create_table('gameweek_leagues',
     sa.Column('gameweek_id', sa.Integer(), nullable=True),
     sa.Column('league_id', sa.Integer(), nullable=True),
@@ -142,12 +154,65 @@ def upgrade() -> None:
     sa.PrimaryKeyConstraint('id')
     )
     op.create_index(op.f('ix_league_memberships_id'), 'league_memberships', ['id'], unique=False)
+    op.create_table('player_stats',
+    sa.Column('id', sa.Integer(), nullable=False),
+    sa.Column('player_id', sa.Integer(), nullable=False),
+    sa.Column('fixture_id', sa.Integer(), nullable=False),
+    sa.Column('minutes_played', sa.Integer(), nullable=True),
+    sa.Column('goals', sa.Integer(), nullable=True),
+    sa.Column('assists', sa.Integer(), nullable=True),
+    sa.Column('clean_sheet', sa.Boolean(), nullable=True),
+    sa.Column('yellow_cards', sa.Integer(), nullable=True),
+    sa.Column('red_cards', sa.Integer(), nullable=True),
+    sa.Column('own_goals', sa.Integer(), nullable=True),
+    sa.Column('penalty_saves', sa.Integer(), nullable=True),
+    sa.Column('penalty_misses', sa.Integer(), nullable=True),
+    sa.Column('saves', sa.Integer(), nullable=True),
+    sa.Column('fantasy_points', sa.Integer(), nullable=True),
+    sa.Column('created_at', sa.DateTime(), nullable=True),
+    sa.ForeignKeyConstraint(['fixture_id'], ['fixtures.id'], ),
+    sa.ForeignKeyConstraint(['player_id'], ['players.id'], ),
+    sa.PrimaryKeyConstraint('id')
+    )
+    op.create_index(op.f('ix_player_stats_id'), 'player_stats', ['id'], unique=False)
+    op.create_table('teams',
+    sa.Column('id', sa.Integer(), nullable=False),
+    sa.Column('name', sa.String(), nullable=False),
+    sa.Column('user_id', sa.Integer(), nullable=False),
+    sa.Column('league_id', sa.Integer(), nullable=False),
+    sa.Column('captain_id', sa.Integer(), nullable=True),
+    sa.Column('vice_captain_id', sa.Integer(), nullable=True),
+    sa.Column('weekly_points', sa.Integer(), nullable=True),
+    sa.Column('total_points', sa.Integer(), nullable=True),
+    sa.Column('current_budget', sa.Float(), nullable=True),
+    sa.Column('created_at', sa.DateTime(), nullable=True),
+    sa.Column('updated_at', sa.DateTime(), nullable=True),
+    sa.ForeignKeyConstraint(['captain_id'], ['players.id'], ),
+    sa.ForeignKeyConstraint(['league_id'], ['leagues.id'], ),
+    sa.ForeignKeyConstraint(['user_id'], ['users.id'], ),
+    sa.ForeignKeyConstraint(['vice_captain_id'], ['players.id'], ),
+    sa.PrimaryKeyConstraint('id')
+    )
+    op.create_index(op.f('ix_teams_id'), 'teams', ['id'], unique=False)
+    op.create_table('chip_usage',
+    sa.Column('id', sa.Integer(), nullable=False),
+    sa.Column('team_id', sa.Integer(), nullable=False),
+    sa.Column('gameweek_id', sa.Integer(), nullable=False),
+    sa.Column('chip_type', sa.String(), nullable=False),
+    sa.Column('created_at', sa.DateTime(), nullable=True),
+    sa.ForeignKeyConstraint(['gameweek_id'], ['gameweeks.id'], ),
+    sa.ForeignKeyConstraint(['team_id'], ['teams.id'], ),
+    sa.PrimaryKeyConstraint('id')
+    )
+    op.create_index(op.f('ix_chip_usage_id'), 'chip_usage', ['id'], unique=False)
     op.create_table('team_players',
     sa.Column('id', sa.Integer(), nullable=False),
     sa.Column('team_id', sa.Integer(), nullable=False),
     sa.Column('player_id', sa.Integer(), nullable=False),
+    sa.Column('joined_at', sa.DateTime(), nullable=True),
+    sa.Column('left_at', sa.DateTime(), nullable=True),
+    sa.Column('purchase_price', sa.Float(), nullable=False),
     sa.Column('is_starter', sa.Boolean(), nullable=True),
-    sa.Column('created_at', sa.DateTime(), nullable=True),
     sa.ForeignKeyConstraint(['player_id'], ['players.id'], ),
     sa.ForeignKeyConstraint(['team_id'], ['teams.id'], ),
     sa.PrimaryKeyConstraint('id')
@@ -156,10 +221,15 @@ def upgrade() -> None:
     op.create_table('transfers',
     sa.Column('id', sa.Integer(), nullable=False),
     sa.Column('team_id', sa.Integer(), nullable=False),
-    sa.Column('player_in_id', sa.Integer(), nullable=False),
     sa.Column('player_out_id', sa.Integer(), nullable=False),
+    sa.Column('player_in_id', sa.Integer(), nullable=False),
     sa.Column('gameweek_id', sa.Integer(), nullable=False),
-    sa.Column('cost', sa.Float(), nullable=True),
+    sa.Column('points_cost', sa.Integer(), nullable=True),
+    sa.Column('money_out', sa.Float(), nullable=False),
+    sa.Column('money_in', sa.Float(), nullable=False),
+    sa.Column('money_change', sa.Float(), nullable=False),
+    sa.Column('is_free_transfer', sa.Boolean(), nullable=True),
+    sa.Column('transfer_number_in_gameweek', sa.Integer(), nullable=False),
     sa.Column('created_at', sa.DateTime(), nullable=True),
     sa.ForeignKeyConstraint(['gameweek_id'], ['gameweeks.id'], ),
     sa.ForeignKeyConstraint(['player_in_id'], ['players.id'], ),
@@ -168,49 +238,30 @@ def upgrade() -> None:
     sa.PrimaryKeyConstraint('id')
     )
     op.create_index(op.f('ix_transfers_id'), 'transfers', ['id'], unique=False)
-    op.create_table('player_stats',
-    sa.Column('id', sa.Integer(), nullable=False),
-    sa.Column('player_id', sa.Integer(), nullable=False),
-    sa.Column('fixture_id', sa.Integer(), nullable=False),
-    sa.Column('goals', sa.Integer(), nullable=True),
-    sa.Column('assists', sa.Integer(), nullable=True),
-    sa.Column('yellow_cards', sa.Integer(), nullable=True),
-    sa.Column('red_cards', sa.Integer(), nullable=True),
-    sa.Column('minutes_played', sa.Integer(), nullable=True),
-    sa.Column('clean_sheet', sa.Boolean(), nullable=True),
-    sa.Column('own_goals', sa.Integer(), nullable=True),
-    sa.Column('penalty_saves', sa.Integer(), nullable=True),
-    sa.Column('penalty_misses', sa.Integer(), nullable=True),
-    sa.Column('saves', sa.Integer(), nullable=True),
-    sa.Column('points', sa.Integer(), nullable=True),
-    sa.Column('created_at', sa.DateTime(), nullable=True),
-    sa.ForeignKeyConstraint(['fixture_id'], ['fixtures.id'], ),
-    sa.ForeignKeyConstraint(['player_id'], ['players.id'], ),
-    sa.PrimaryKeyConstraint('id')
-    )
-    op.create_index(op.f('ix_player_stats_id'), 'player_stats', ['id'], unique=False)
     # ### end Alembic commands ###
 
 
 def downgrade() -> None:
     # ### commands auto generated by Alembic - please adjust! ###
-    op.drop_index(op.f('ix_player_stats_id'), table_name='player_stats')
-    op.drop_table('player_stats')
     op.drop_index(op.f('ix_transfers_id'), table_name='transfers')
     op.drop_table('transfers')
     op.drop_index(op.f('ix_team_players_id'), table_name='team_players')
     op.drop_table('team_players')
+    op.drop_index(op.f('ix_chip_usage_id'), table_name='chip_usage')
+    op.drop_table('chip_usage')
+    op.drop_index(op.f('ix_teams_id'), table_name='teams')
+    op.drop_table('teams')
+    op.drop_index(op.f('ix_player_stats_id'), table_name='player_stats')
+    op.drop_table('player_stats')
     op.drop_index(op.f('ix_league_memberships_id'), table_name='league_memberships')
     op.drop_table('league_memberships')
     op.drop_index(op.f('ix_league_gameweek_standings_id'), table_name='league_gameweek_standings')
     op.drop_table('league_gameweek_standings')
     op.drop_table('gameweek_leagues')
-    op.drop_index(op.f('ix_fixtures_id'), table_name='fixtures')
-    op.drop_table('fixtures')
-    op.drop_index(op.f('ix_teams_id'), table_name='teams')
-    op.drop_table('teams')
     op.drop_index(op.f('ix_leagues_id'), table_name='leagues')
     op.drop_table('leagues')
+    op.drop_index(op.f('ix_fixtures_id'), table_name='fixtures')
+    op.drop_table('fixtures')
     op.drop_index(op.f('ix_audit_logs_id'), table_name='audit_logs')
     op.drop_table('audit_logs')
     op.drop_index(op.f('ix_users_id'), table_name='users')

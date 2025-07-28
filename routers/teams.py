@@ -10,9 +10,6 @@ from sqlalchemy import and_
 
 router = APIRouter()
 
-# =============================================================================
-# USER-FRIENDLY ENDPOINTS - Focus on what users actually want to do
-# =============================================================================
 
 @router.get("/", response_model=List[TeamResponse])
 async def get_my_teams(
@@ -100,7 +97,7 @@ async def get_my_squad(
         player_info = {
             "id": player.id,
             "name": player.name,
-            "real_team": player.real_team,
+            "team": player.team,
             "position": player.position.value,
             "price": player.price,
             "total_points": player.total_points,
@@ -159,7 +156,7 @@ async def select_squad(
     # Validate squad composition (2 GK, 5 DEF, 5 MID, 3 FWD)
     position_counts = {}
     total_cost = 0
-    real_team_counts = {}
+    team_counts = {}
     
     for player in selected_players:
         # Count positions
@@ -170,7 +167,7 @@ async def select_squad(
         total_cost += player.price
         
         # Count players per real team
-        real_team_counts[player.real_team] = real_team_counts.get(player.real_team, 0) + 1
+        team_counts[player.team] = team_counts.get(player.team, 0) + 1
     
     # Validate position requirements
     if position_counts.get("goalkeeper", 0) != 2:
@@ -188,9 +185,9 @@ async def select_squad(
         raise HTTPException(400, f"Squad costs £{total_cost}m, but budget is £{league.budget}m")
     
     # Check max players per real team
-    for real_team, count in real_team_counts.items():
-        if count > league.max_players_per_real_team:
-            raise HTTPException(400, f"Cannot select more than {league.max_players_per_real_team} players from {real_team}")
+    for team, count in team_counts.items():
+        if count > league.max_players_per_team:
+            raise HTTPException(400, f"Cannot select more than {league.max_players_per_team} players from {team}")
     
     # All validations passed - update the squad
     # First, mark all current players as left
