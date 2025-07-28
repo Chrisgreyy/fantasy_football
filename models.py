@@ -185,7 +185,7 @@ class League(Base):
     
     # League settings/rules (configurable by league owner)
     budget = Column(Float, default=100.0) 
-    max_players_per_team = Column(Integer, default=3)  
+    max_players_per_team = Column(Integer, default=3)  # max players per team
     max_teams = Column(Integer, default=20)  
     
     # Squad composition rules (configurable)

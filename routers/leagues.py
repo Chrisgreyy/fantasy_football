@@ -30,9 +30,9 @@ async def get_user_leagues(
 async def create_league(
     league: LeagueCreate,
     db: Session = Depends(get_db),
-    current_user: User = Depends(get_current_admin_user)  # Changed to admin only
+    current_user: User = Depends(get_current_active_user)
 ):
-    """Create a new league (admin only)."""
+    """Create a new league. The creator becomes the league owner."""
     # Generate unique league code
     while True:
         code = generate_league_code()
@@ -93,21 +93,86 @@ async def update_league(
     league_id: int,
     league_update: LeagueUpdate,
     db: Session = Depends(get_db),
-    current_user: User = Depends(get_current_admin_user)  # Changed to admin only
+    current_user: User = Depends(get_current_active_user)
 ):
-    """Update league (admin only)."""
+    """Update league settings (league owner or admin only)."""
     league = db.query(League).filter(League.id == league_id).first()
     if not league:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
             detail="League not found"
         )
+
+    # Check if user is league owner or admin
+    if league.owner_id != current_user.id and current_user.role != "admin":
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Only league owner or admin can update league settings"
+        )
     
-    # Update fields if provided
+    # Update all configurable fields if provided
     if league_update.name is not None:
         league.name = league_update.name
     if league_update.is_private is not None:
         league.is_private = league_update.is_private
+    if league_update.budget is not None:
+        league.budget = league_update.budget
+    if league_update.max_players_per_team is not None:
+        league.max_players_per_team = league_update.max_players_per_team
+    if league_update.max_teams is not None:
+        league.max_teams = league_update.max_teams
+        
+    # Squad composition rules
+    if league_update.max_goalkeepers is not None:
+        league.max_goalkeepers = league_update.max_goalkeepers
+    if league_update.max_defenders is not None:
+        league.max_defenders = league_update.max_defenders
+    if league_update.max_midfielders is not None:
+        league.max_midfielders = league_update.max_midfielders
+    if league_update.max_forwards is not None:
+        league.max_forwards = league_update.max_forwards
+    if league_update.total_squad_size is not None:
+        league.total_squad_size = league_update.total_squad_size
+        
+    # Transfer rules
+    if league_update.free_transfers_per_gameweek is not None:
+        league.free_transfers_per_gameweek = league_update.free_transfers_per_gameweek
+    if league_update.transfer_penalty_points is not None:
+        league.transfer_penalty_points = league_update.transfer_penalty_points
+    if league_update.max_transfers_per_gameweek is not None:
+        league.max_transfers_per_gameweek = league_update.max_transfers_per_gameweek
+        
+    # Scoring system
+    if league_update.points_per_goal_forward is not None:
+        league.points_per_goal_forward = league_update.points_per_goal_forward
+    if league_update.points_per_goal_midfielder is not None:
+        league.points_per_goal_midfielder = league_update.points_per_goal_midfielder
+    if league_update.points_per_goal_defender is not None:
+        league.points_per_goal_defender = league_update.points_per_goal_defender
+    if league_update.points_per_goal_goalkeeper is not None:
+        league.points_per_goal_goalkeeper = league_update.points_per_goal_goalkeeper
+    if league_update.points_per_assist is not None:
+        league.points_per_assist = league_update.points_per_assist
+    if league_update.points_per_clean_sheet is not None:
+        league.points_per_clean_sheet = league_update.points_per_clean_sheet
+    if league_update.points_per_yellow_card is not None:
+        league.points_per_yellow_card = league_update.points_per_yellow_card
+    if league_update.points_per_red_card is not None:
+        league.points_per_red_card = league_update.points_per_red_card
+    if league_update.points_per_own_goal is not None:
+        league.points_per_own_goal = league_update.points_per_own_goal
+    if league_update.points_per_penalty_save is not None:
+        league.points_per_penalty_save = league_update.points_per_penalty_save
+    if league_update.points_per_penalty_miss is not None:
+        league.points_per_penalty_miss = league_update.points_per_penalty_miss
+        
+    # Special features
+    if league_update.allow_wildcards is not None:
+        league.allow_wildcards = league_update.allow_wildcards
+    if league_update.allow_bench_boost is not None:
+        league.allow_bench_boost = league_update.allow_bench_boost
+    if league_update.allow_triple_captain is not None:
+        league.allow_triple_captain = league_update.allow_triple_captain
     
     db.commit()
     db.refresh(league)

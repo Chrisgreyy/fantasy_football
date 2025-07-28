@@ -19,7 +19,7 @@ async def get_user(
     current_user: User = Depends(get_current_active_user),
     db: Session = Depends(get_db)
 ):
-    """Get user by ID."""
+    """Get user by ID (if the user owns the resource or is an admin)."""
     check_user_owns_resource(current_user, user_id)
     
     user = db.query(User).filter(User.id == user_id).first()
@@ -37,7 +37,7 @@ async def update_user(
     current_user: User = Depends(get_current_active_user),
     db: Session = Depends(get_db)
 ):
-    """Update user profile."""
+    """Update user profile (if the user owns the resource or is an admin)."""
     check_user_owns_resource(current_user, user_id)
     
     user = db.query(User).filter(User.id == user_id).first()
@@ -70,7 +70,7 @@ async def get_user_budget(
     current_user: User = Depends(get_current_active_user),
     db: Session = Depends(get_db)
 ):
-    """Get user's current budget."""
+    """Get user's current budget (if the user owns the resource or is an admin)."""
     check_user_owns_resource(current_user, user_id)
     
     user = db.query(User).filter(User.id == user_id).first()
