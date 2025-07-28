@@ -75,8 +75,8 @@ class TeamResponse(TeamBase):
     league_id: int
     captain_id: Optional[int]
     vice_captain_id: Optional[int]
-    weekly_points: int
-    total_points: int
+    weekly_points: int = 0
+    total_points: int = 0
     current_budget: float  # Remaining budget
     created_at: datetime
     

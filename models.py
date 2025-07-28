@@ -78,9 +78,10 @@ class Team(Base):
     league_id = Column(Integer, ForeignKey("leagues.id"), nullable=False)  
     captain_id = Column(Integer, ForeignKey("players.id"), nullable=True)
     vice_captain_id = Column(Integer, ForeignKey("players.id"), nullable=True)
-    total_points = Column(Integer, default=0)
-    current_budget = Column(Float, default=100.0)  
-    created_at = Column(DateTime, default=func.now())
+    total_points = Column(Integer, nullable=False, default=0)
+    weekly_points = Column(Integer, nullable=False, default=0)  # Points for the current gameweek
+    current_budget = Column(Float, nullable=False, default=100.0)  
+    created_at = Column(DateTime, nullable=False, default=func.now())
     updated_at = Column(DateTime, default=func.now(), onupdate=func.now())
     
     # Relationships

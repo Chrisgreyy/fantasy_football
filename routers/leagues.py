@@ -44,7 +44,42 @@ async def create_league(
         name=league.name,
         code=code,
         owner_id=current_user.id,
-        is_private=league.is_private
+        is_private=league.is_private,
+        
+        # Basic settings
+        budget=league.budget,
+        max_players_per_team=league.max_players_per_team,
+        max_teams=league.max_teams,
+        
+        # Squad composition rules
+        max_goalkeepers=league.max_goalkeepers,
+        max_defenders=league.max_defenders,
+        max_midfielders=league.max_midfielders,
+        max_forwards=league.max_forwards,
+        total_squad_size=league.total_squad_size,
+        
+        # Transfer rules
+        free_transfers_per_gameweek=league.free_transfers_per_gameweek,
+        transfer_penalty_points=league.transfer_penalty_points,
+        max_transfers_per_gameweek=league.max_transfers_per_gameweek,
+        
+        # Scoring system
+        points_per_goal_forward=league.points_per_goal_forward,
+        points_per_goal_midfielder=league.points_per_goal_midfielder,
+        points_per_goal_defender=league.points_per_goal_defender,
+        points_per_goal_goalkeeper=league.points_per_goal_goalkeeper,
+        points_per_assist=league.points_per_assist,
+        points_per_clean_sheet=league.points_per_clean_sheet,
+        points_per_yellow_card=league.points_per_yellow_card,
+        points_per_red_card=league.points_per_red_card,
+        points_per_own_goal=league.points_per_own_goal,
+        points_per_penalty_save=league.points_per_penalty_save,
+        points_per_penalty_miss=league.points_per_penalty_miss,
+        
+        # Special features
+        allow_wildcards=league.allow_wildcards,
+        allow_bench_boost=league.allow_bench_boost,
+        allow_triple_captain=league.allow_triple_captain
     )
     db.add(db_league)
     db.commit()
