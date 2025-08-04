@@ -13,7 +13,31 @@ async def lifespan(app: FastAPI):
 
 app = FastAPI(
     title="Fantasy Football API",
-    description="A comprehensive Fantasy Football Web API for managing teams, players, and leagues",
+    description="""
+    A comprehensive Fantasy Football Web API for managing teams, players, and leagues.
+    
+    ## Key Features
+    
+    ### For Users
+    * Browse and search real football players
+    * Create and manage fantasy teams
+    * Join leagues and compete with friends
+    * Track performance and scores
+    
+    ### For Admins  
+    * Manage the master player database
+    * Create and control gameweeks
+    * Oversee league operations
+    * Handle user management
+    
+    ## Authentication
+    Use `/auth/register` to create an account and `/auth/login` to get access tokens.
+    Include the token in the Authorization header: `Bearer <your_token>`
+    
+    ## Design Philosophy
+    This API separates user gameplay from system administration to ensure data integrity,
+    security, and fair play across all fantasy football leagues.
+    """,
     version="1.0.0",
     lifespan=lifespan
 )

@@ -46,7 +46,10 @@ A robust, secure, and scalable Fantasy Football Web API built with FastAPI, Post
    git clone <repository-url>
    cd fantasy_football
    ```
-
+2. **create a virtual environment**
+      ```bash
+   source venv/Scripts/activate
+   ```
 2. **Install dependencies**
    ```bash
    pip install -r requirements.txt

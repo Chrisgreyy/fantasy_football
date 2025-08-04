@@ -19,7 +19,7 @@ def require_admin(current_user: User = Depends(get_current_active_user)):
 
 
 @router.get("/", response_model=List[PlayerResponse])
-async def get_players(
+async def browse_players(
     skip: int = 0,
     limit: int = 100,
     status: Optional[PlayerStatus] = Query(None, description="Filter by player status"),
@@ -31,9 +31,13 @@ async def get_players(
     current_user: User = Depends(get_current_active_user)
 ):
     """
-    Get all real players available for fantasy teams
+    Browse all real players available for fantasy teams
     
-    This is what users need - browse all available players to pick for their fantasy team
+    This is the main endpoint users need to:
+    - Browse available players for their fantasy team
+    - Compare player stats and prices
+    - Search for specific players
+    - Filter by position/team when building squads
     """
     query = db.query(Player)
     
@@ -119,7 +123,7 @@ async def get_player_performance_history(
     }
 
 # =============================================================================
-# ADMIN-ONLY ENDPOINTS - For managing the real player database
+# ADMIN ENDPOINTS - For managing the real player database
 # =============================================================================
 
 @router.post("/", response_model=PlayerResponse)
@@ -131,13 +135,23 @@ async def create_player(
     """
     Create a new real player (ADMIN ONLY)
     
-    This is how real players like Salah, Rashford get added to the system
+    Use case: Adding real football players (Salah, Rashford, etc.) to the system
+    when new players join the Premier League or need to be added to the database.
+    
+    This is different from fantasy team creation - this manages the master
+    player database that users choose from for their fantasy teams.
     """
     
     # Check if player already exists
-    existing_player = db.query(Player).filter(Player.name == player.name).first()
+    existing_player = db.query(Player).filter(
+        Player.name == player.name,
+        Player.team == player.team
+    ).first()
     if existing_player:
-        raise HTTPException(400, "Player with this name already exists")
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Player with this name already exists in this team"
+        )
     
     db_player = Player(
         name=player.name,
@@ -153,56 +167,122 @@ async def create_player(
     return db_player
 
 @router.put("/{player_id}", response_model=PlayerResponse)
-async def update_player(
+async def update_player_details(
     player_id: int,
     player_update: PlayerUpdate,
     db: Session = Depends(get_db),
     admin_user: User = Depends(require_admin)
 ):
-    """Update player information (ADMIN ONLY)"""
+    """
+    Update player information (ADMIN ONLY)
+    
+    Use cases:
+    - Player transfers to new team (update team field)
+    - Position changes (e.g., midfielder to forward)
+    - Status changes (injured, suspended, available)
+    - Shirt number changes
+    - Name corrections
+    
+    Note: For frequent price updates, use the dedicated price endpoint
+    which provides better audit trail and market transparency.
+    """
     
     player = db.query(Player).filter(Player.id == player_id).first()
     if not player:
-        raise HTTPException(404, "Player not found")
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Player not found"
+        )
+    
+    # Track what changed for audit purposes
+    changes = []
     
     # Update fields if provided
-    if player_update.name is not None:
+    if player_update.name is not None and player_update.name != player.name:
+        changes.append(f"name: {player.name} -> {player_update.name}")
         player.name = player_update.name
-    if player_update.position is not None:
+        
+    if player_update.position is not None and player_update.position != player.position:
+        changes.append(f"position: {player.position.value} -> {player_update.position.value}")
         player.position = player_update.position
-    if player_update.team is not None:
+        
+    if player_update.team is not None and player_update.team != player.team:
+        changes.append(f"team: {player.team} -> {player_update.team}")
         player.team = player_update.team
-    if player_update.price is not None:
+        
+    if player_update.price is not None and player_update.price != player.price:
+        changes.append(f"price: £{player.price}m -> £{player_update.price}m")
         player.price = player_update.price
-    if player_update.status is not None:
+        
+    if player_update.status is not None and player_update.status != player.status:
+        changes.append(f"status: {player.status.value} -> {player_update.status.value}")
         player.status = player_update.status
-    if player_update.shirt_number is not None:
+        
+    if player_update.shirt_number is not None and player_update.shirt_number != player.shirt_number:
+        changes.append(f"shirt_number: {player.shirt_number} -> {player_update.shirt_number}")
         player.shirt_number = player_update.shirt_number
+    
+    if not changes:
+        return {"message": "No changes to apply", "player": player}
     
     db.commit()
     db.refresh(player)
-    return player
+    
+    return {
+        "message": f"Updated {player.name}: {', '.join(changes)}",
+        "player": player
+    }
 
 @router.patch("/{player_id}/price")
 async def update_player_price(
     player_id: int,
     new_price: float,
+    reason: Optional[str] = Query(None, description="Reason for price change"),
     db: Session = Depends(get_db),
     admin_user: User = Depends(require_admin)
 ):
-    """Update player price (ADMIN ONLY)"""
+    """
+    Update player price (ADMIN ONLY)
+    
+    Use cases:
+    - Weekly/daily price adjustments based on demand
+    - Performance-based price changes
+    - Market balancing adjustments
+    
+    Separated from general player updates because:
+    1. Price changes happen much more frequently
+    2. Price history may need to be maintained per gameweek
+    3. Market transparency requires different audit trail
+    4. Different validation rules may apply
+    """
+    
+    if new_price < 0.1 or new_price > 20.0:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Player price must be between £0.1m and £20.0m"
+        )
     
     player = db.query(Player).filter(Player.id == player_id).first()
     if not player:
-        raise HTTPException(404, "Player not found")
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Player not found"
+        )
     
     old_price = player.price
+    price_change = new_price - old_price
     player.price = new_price
     db.commit()
+    
+    # In a real system, this would also update price history table
     
     return {
         "message": f"Updated {player.name} price from £{old_price}m to £{new_price}m",
         "player": player.name,
         "old_price": old_price,
-        "new_price": new_price
+        "new_price": new_price,
+        "change": price_change,
+        "change_percentage": round((price_change / old_price) * 100, 2),
+        "reason": reason or "Not specified",
+        "updated_by": admin_user.name
     } 

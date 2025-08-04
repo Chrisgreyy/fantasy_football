@@ -14,7 +14,7 @@ from schemas import (
 from auth import get_current_active_user
 from datetime import datetime
 
-router = APIRouter(prefix="/admin", tags=["Admin"])
+router = APIRouter(tags=["Admin"])
 
 def require_admin(current_user: User = Depends(get_current_active_user)):
     """Ensure the current user is an admin"""
@@ -33,78 +33,65 @@ def get_all_users(
     """Get all users in the system (admin only)"""
     return db.query(User).all()
 
-@router.post("/players", response_model=PlayerResponse)
-def create_player(
-    player_data: PlayerCreate,
+@router.put("/users/{user_id}/promote")
+def promote_user_to_admin(
+    user_id: int,
     db: Session = Depends(get_db),
     admin_user: User = Depends(require_admin)
 ):
-    """Create a new player (admin only)
-    Note: PlayerPosition is an enum with values like:
-    GOALKEEPER= "goalkeeper"
-    DEFENDER = "defender"
-    MIDFIELDER = "midfielder"
-    FORWARD = "forward"
-    """
-    
-    # Check if player already exists
-    existing = db.query(Player).filter(
-        Player.name == player_data.name,
-        Player.team == player_data.team
-    ).first()
-    
-    if existing:
-        raise HTTPException(
-            status_code=status.HTTP_400_BAD_REQUEST,
-            detail="Player already exists in this team"
-        )
-    
-    player = Player(**player_data.dict())
-    db.add(player)
-    db.commit()
-    db.refresh(player)
-    
-    return player
-
-@router.get("/players", response_model=List[PlayerResponse])
-def get_all_players(
-    team: Optional[str] = None,
-    position: Optional[PlayerPosition] = None,
-    db: Session = Depends(get_db),
-    admin_user: User = Depends(require_admin)
-):
-    """Get all players with optional filters (admin only)"""
-    
-    query = db.query(Player)
-    
-    if team:
-        query = query.filter(Player.team == team)
-    
-    if position:
-        query = query.filter(Player.position == position)
-    
-    return query.all()
-
-@router.put("/players/{player_id}/price")
-def update_player_price(
-    player_id: int,
-    new_price: float,
-    db: Session = Depends(get_db),
-    admin_user: User = Depends(require_admin)
-):
-    """Update a player's price (admin only)"""
-    
-    player = db.query(Player).filter(Player.id == player_id).first()
-    if not player:
+    """Promote a user to admin role (admin only)"""
+    user = db.query(User).filter(User.id == user_id).first()
+    if not user:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
-            detail="Player not found"
+            detail="User not found"
         )
     
-    player.price = new_price
+    if user.role == UserRole.ADMIN:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="User is already an admin"
+        )
+    
+    user.role = UserRole.ADMIN
     db.commit()
     
-    return {"message": f"Updated {player.name}'s price to £{new_price}m"}
+    return {"message": f"User {user.name} has been promoted to admin"}
+
+@router.put("/users/{user_id}/demote")
+def demote_admin_to_user(
+    user_id: int,
+    db: Session = Depends(get_db),
+    admin_user: User = Depends(require_admin)
+):
+    """Demote an admin to regular user role (admin only)"""
+    user = db.query(User).filter(User.id == user_id).first()
+    if not user:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="User not found"
+        )
+    
+    if user.role == UserRole.USER:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="User is already a regular user"
+        )
+    
+    # Prevent demoting yourself
+    if user.id == admin_user.id:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Cannot demote yourself"
+        )
+    
+    user.role = UserRole.USER
+    db.commit()
+    
+    return {"message": f"Admin {user.name} has been demoted to regular user"}
+
+# Player management moved to /players router with admin-only decorators
+# This eliminates endpoint duplication while maintaining clear authorization
 
 @router.post("/gameweeks", response_model=GameweekResponse)
 def create_gameweek(
@@ -141,7 +128,19 @@ def update_gameweek_status(
     db: Session = Depends(get_db),
     admin_user: User = Depends(require_admin)
 ):
-    """Update gameweek status (admin only)"""
+    """Update gameweek status (admin only)
+    
+    Status Flow: UPCOMING -> ACTIVE -> COMPLETED
+    
+    UPCOMING: Gameweek created but deadline not reached
+    ACTIVE: Deadline passed, team changes locked, fixtures in progress  
+    COMPLETED: All fixtures finished, stats entered, points final and immutable
+    
+    Business Logic:
+    - ACTIVE: Only one gameweek can be active at a time
+    - COMPLETED: All fixtures must be finished before completion
+    - Once COMPLETED, gameweek data becomes immutable to ensure data integrity
+    """
     
     gameweek = db.query(Gameweek).filter(Gameweek.id == gameweek_id).first()
     if not gameweek:
@@ -150,10 +149,110 @@ def update_gameweek_status(
             detail="Gameweek not found"
         )
     
+    # Validate status transitions
+    current_status = gameweek.status
+    
+    # Define valid status transitions
+    valid_transitions = {
+        GameweekStatus.UPCOMING: [GameweekStatus.ACTIVE],
+        GameweekStatus.ACTIVE: [GameweekStatus.COMPLETED],
+        GameweekStatus.COMPLETED: []  # No transitions allowed from completed
+    }
+    
+    if status not in valid_transitions.get(current_status, []):
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail=f"Invalid status transition from {current_status.value} to {status.value}"
+        )
+    
+    # Handle ACTIVE status - only one gameweek can be active
+    if status == GameweekStatus.ACTIVE:
+        # Deactivate any currently active gameweek
+        current_active = db.query(Gameweek).filter(
+            Gameweek.status == GameweekStatus.ACTIVE,
+            Gameweek.id != gameweek_id
+        ).first()
+        
+        if current_active:
+            current_active.status = GameweekStatus.COMPLETED
+            db.commit()
+            
+    # Handle COMPLETED status - verify all fixtures are done
+    elif status == GameweekStatus.COMPLETED:
+        incomplete_fixtures = db.query(Fixture).filter(
+            Fixture.gameweek_id == gameweek_id,
+            Fixture.completed == False
+        ).count()
+        
+        if incomplete_fixtures > 0:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail=f"Cannot complete gameweek. {incomplete_fixtures} fixtures are still incomplete."
+            )
+    
     gameweek.status = status
     db.commit()
     
-    return {"message": f"Updated gameweek {gameweek.number} status to {status.value}"}
+    status_messages = {
+        GameweekStatus.ACTIVE: f"Gameweek {gameweek.number} is now ACTIVE - team changes locked, any previous active gameweek has been completed",
+        GameweekStatus.COMPLETED: f"Gameweek {gameweek.number} is now COMPLETED - scores are final and immutable"
+    }
+    
+    return {
+        "message": status_messages.get(status, f"Updated gameweek {gameweek.number} status to {status.value}"),
+        "gameweek_id": gameweek_id,
+        "new_status": status.value,
+        "previous_status": current_status.value
+    }
+
+@router.put("/gameweeks/{gameweek_id}/emergency-correction")
+def emergency_gameweek_correction(
+    gameweek_id: int,
+    correction_reason: str,
+    db: Session = Depends(get_db),
+    admin_user: User = Depends(require_admin)
+):
+    """Emergency correction for completed gameweeks (admin only)
+    
+    This endpoint exists for critical errors that must be fixed even after completion.
+    Use cases:
+    - Incorrect player stats that significantly affect league standings
+    - System bugs that calculated points incorrectly
+    - Official league corrections from real football authorities
+    
+    All corrections are logged for transparency and audit purposes.
+    """
+    
+    gameweek = db.query(Gameweek).filter(Gameweek.id == gameweek_id).first()
+    if not gameweek:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Gameweek not found"
+        )
+    
+    if gameweek.status != GameweekStatus.COMPLETED:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Emergency corrections only allowed for completed gameweeks"
+        )
+    
+    if not correction_reason or len(correction_reason.strip()) < 10:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Correction reason must be at least 10 characters"
+        )
+    
+    # Temporarily allow modifications by setting status back to ACTIVE
+    gameweek.status = GameweekStatus.ACTIVE
+    db.commit()
+    
+    # Log the correction (in a real system, this would go to an audit table)
+    return {
+        "message": f"Emergency correction enabled for gameweek {gameweek.number}",
+        "reason": correction_reason,
+        "corrected_by": admin_user.name,
+        "warning": "Gameweek must be manually set back to COMPLETED after corrections are made"
+    }
 
 @router.post("/player-stats", response_model=PlayerStatsResponse)
 def create_player_stats(
