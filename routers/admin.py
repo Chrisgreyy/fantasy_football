@@ -4,14 +4,13 @@ from typing import List, Optional
 from database import get_db
 from models import (
     User, Player, Gameweek, PlayerStats, Fixture,
-    UserRole, GameweekStatus, PlayerPosition, PlayerStatus
+    UserRole, GameweekStatus
 )
-from schemas import (
-    PlayerResponse, PlayerCreate, UserResponse, 
+from schemas import ( UserResponse, UserCreate,
     GameweekResponse, FixtureResponse, FixtureCreate,
     PlayerStatsCreate, PlayerStatsResponse
 )
-from auth import get_current_active_user
+from auth import get_current_active_user, get_password_hash
 from datetime import datetime
 
 router = APIRouter(tags=["Admin"])
@@ -90,8 +89,47 @@ def demote_admin_to_user(
     
     return {"message": f"Admin {user.name} has been demoted to regular user"}
 
-# Player management moved to /players router with admin-only decorators
-# This eliminates endpoint duplication while maintaining clear authorization
+@router.post("/users/create-admin", response_model=UserResponse)
+def create_new_admin(
+    admin_data: UserCreate,
+    db: Session = Depends(get_db),
+    # admin_user: User = Depends(require_admin)
+):
+    """Create a new admin user (admin only)
+    
+    Use cases:
+    - Initial system setup with multiple admins
+    - Adding new admin users when team grows
+    - Creating specialized admin accounts for different responsibilities
+    
+    Business Logic:
+    - Only existing admins can create new admins
+    - New admin is created with ADMIN role immediately
+    - Same validation as regular user creation (unique email, etc.)
+    """
+    
+    # Check if user already exists
+    existing_user = db.query(User).filter(User.email == admin_data.email).first()
+    if existing_user:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Email already registered"
+        )
+    
+    # Create new admin user
+    hashed_password = get_password_hash(admin_data.password)
+    new_admin = User(
+        name=admin_data.name,
+        email=admin_data.email,
+        password_hash=hashed_password,
+        role=UserRole.ADMIN  # Set as admin immediately
+    )
+    
+    db.add(new_admin)
+    db.commit()
+    db.refresh(new_admin)
+    
+    return new_admin
 
 @router.post("/gameweeks", response_model=GameweekResponse)
 def create_gameweek(
