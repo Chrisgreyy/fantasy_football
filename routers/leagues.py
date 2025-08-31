@@ -5,7 +5,7 @@ from typing import List
 import random
 import string
 from database import get_db
-from models import League, User, LeagueMembership, Team
+from models import League, User, LeagueMembership, Team, UserRole
 from schemas import LeagueResponse, LeagueCreate, LeagueUpdate, LeagueMembershipCreate, LeagueMembershipResponse, DetailedLeagueMembershipResponse, LeaderboardResponse, LeaderboardEntry
 from auth import get_current_active_user, get_current_admin_user, check_user_owns_resource
 
@@ -20,7 +20,12 @@ async def get_user_leagues(
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_active_user)
 ):
-    """Get leagues the current user is a member of."""
+    """Get leagues the current user is a member of or all leagues if admin."""
+    if current_user.role == UserRole.ADMIN:
+        # Admins can see all leagues
+        return db.query(League).all()
+    
+    # Regular users can only see leagues they're members of
     leagues = db.query(League).join(LeagueMembership).filter(
         LeagueMembership.user_id == current_user.id
     ).all()
@@ -108,6 +113,10 @@ async def get_league(
             status_code=status.HTTP_404_NOT_FOUND,
             detail="League not found"
         )
+    
+    # Admins have access to all leagues
+    if current_user.role == UserRole.ADMIN:
+        return league
     
     # Check if user is a member of the league
     membership = db.query(LeagueMembership).filter(

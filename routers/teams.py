@@ -1,5 +1,5 @@
 from fastapi import APIRouter, Depends, HTTPException, status
-from sqlalchemy.orm import Session
+from sqlalchemy.orm import Session, joinedload
 from typing import List, Optional
 from database import get_db
 from models import Team, User, Player, TeamPlayer, Transfer, Gameweek, League, PlayerPosition
@@ -134,7 +134,7 @@ async def select_squad(
     """
     
     # Verify user owns this team
-    team = db.query(Team).filter(
+    team = db.query(Team).options(joinedload(Team.league)).filter(
         and_(Team.id == team_id, Team.user_id == current_user.id)
     ).first()
     
@@ -185,9 +185,9 @@ async def select_squad(
         raise HTTPException(400, f"Squad costs £{total_cost}m, but budget is £{league.budget}m")
     
     # Check max players per real team
-    for team, count in team_counts.items():
+    for real_team, count in team_counts.items():
         if count > league.max_players_per_team:
-            raise HTTPException(400, f"Cannot select more than {league.max_players_per_team} players from {team}")
+            raise HTTPException(400, f"Cannot select more than {league.max_players_per_team} players from {real_team}")
     
     # All validations passed - update the squad
     # First, mark all current players as left
