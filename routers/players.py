@@ -222,13 +222,8 @@ async def update_player_details(
         changes.append(f"shirt_number: {player.shirt_number} -> {player_update.shirt_number}")
         player.shirt_number = player_update.shirt_number
     
-    if not changes:
-        return {"message": "No changes to apply", "player": player}
+    if changes:
+        db.commit()
+        db.refresh(player)
     
-    db.commit()
-    db.refresh(player)
-    
-    return {
-        "message": f"Updated {player.name}: {', '.join(changes)}",
-        "player": player
-    }
+    return player

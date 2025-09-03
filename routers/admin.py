@@ -93,7 +93,8 @@ def demote_admin_to_user(
 def create_new_admin(
     admin_data: UserCreate,
     db: Session = Depends(get_db),
-    # admin_user: User = Depends(require_admin)
+    #0
+    # 1 admin_user: User = Depends(require_admin)
 ):
     """Create a new admin user (admin only)
     
@@ -292,6 +293,27 @@ def emergency_gameweek_correction(
         "warning": "Gameweek must be manually set back to COMPLETED after corrections are made"
     }
 
+@router.get("/player-stats/{player_id}/fixture/{fixture_id}")
+def get_player_stats_for_fixture(
+    player_id: int,
+    fixture_id: int,
+    db: Session = Depends(get_db),
+    admin_user: User = Depends(require_admin)
+):
+    """Get player statistics for a specific fixture"""
+    stats = db.query(PlayerStats).filter(
+        PlayerStats.player_id == player_id,
+        PlayerStats.fixture_id == fixture_id
+    ).first()
+    
+    if not stats:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="No stats found for this player in this fixture"
+        )
+    
+    return stats
+
 @router.post("/player-stats", response_model=PlayerStatsResponse)
 def create_player_stats(
     stats_data: PlayerStatsCreate,
@@ -308,24 +330,24 @@ def create_player_stats(
             detail="Player not found"
         )
     
-    # Verify gameweek exists
-    gameweek = db.query(Gameweek).filter(Gameweek.id == stats_data.gameweek_id).first()
-    if not gameweek:
+    # Verify fixture exists and get its gameweek
+    fixture = db.query(Fixture).filter(Fixture.id == stats_data.fixture_id).first()
+    if not fixture:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
-            detail="Gameweek not found"
+            detail="Fixture not found"
         )
     
-    # Check if stats already exist for this player/gameweek
+    # Check if stats already exist for this player/fixture
     existing = db.query(PlayerStats).filter(
         PlayerStats.player_id == stats_data.player_id,
-        PlayerStats.gameweek_id == stats_data.gameweek_id
+        PlayerStats.fixture_id == stats_data.fixture_id
     ).first()
     
     if existing:
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
-            detail="Stats already exist for this player/gameweek"
+            detail="Stats already exist for this player in this fixture"
         )
     
     stats = PlayerStats(**stats_data.dict())

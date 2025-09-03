@@ -293,10 +293,9 @@ class DetailedLeagueMembershipResponse(BaseModel):
 # Fixture schemas
 class FixtureBase(BaseModel):
     gameweek_id: int
-    league_id: int  # Add league_id as required field
     home_team: str
     away_team: str
-    date: datetime
+    kickoff_time: datetime
 
 class FixtureCreate(FixtureBase):
     pass
@@ -304,7 +303,7 @@ class FixtureCreate(FixtureBase):
 class FixtureUpdate(BaseModel):
     home_team: Optional[str] = None
     away_team: Optional[str] = None
-    date: Optional[datetime] = None
+    kickoff_time: Optional[datetime] = None
     completed: Optional[bool] = None
 
 class FixtureResponse(FixtureBase):
@@ -347,7 +346,7 @@ class PlayerStatsUpdate(BaseModel):
 
 class PlayerStatsResponse(PlayerStatsBase):
     id: int
-    points: int
+    fantasy_points: int
     created_at: datetime
     
     class Config:

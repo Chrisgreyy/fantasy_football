@@ -148,7 +148,7 @@ async def update_league(
         )
 
     # Check if user is league owner or admin
-    if league.owner_id != current_user.id and current_user.role != "admin":
+    if league.owner_id != current_user.id and current_user.role != UserRole.ADMIN:
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN,
             detail="Only league owner or admin can update league settings"

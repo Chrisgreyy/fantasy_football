@@ -2,7 +2,7 @@ from fastapi import APIRouter, Depends, HTTPException, status
 from sqlalchemy.orm import Session, joinedload
 from typing import List, Optional
 from database import get_db
-from models import Team, User, Player, TeamPlayer, Transfer, Gameweek, League, PlayerPosition
+from models import Team, User, Player, TeamPlayer, Transfer, Gameweek, League, PlayerPosition, GameweekStatus
 from schemas import TeamResponse, TeamCreate, TeamUpdate, PlayerResponse
 from auth import get_current_active_user, check_user_owns_resource
 from datetime import datetime
@@ -474,7 +474,7 @@ async def get_transfer_info(
     
     # Get current gameweek
     current_gameweek = db.query(Gameweek).filter(
-        Gameweek.status.in_(["upcoming", "active"])
+        Gameweek.status.in_([GameweekStatus.UPCOMING, GameweekStatus.ACTIVE])
     ).first()
     
     if not current_gameweek:

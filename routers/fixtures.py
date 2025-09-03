@@ -67,7 +67,7 @@ async def get_fixtures(
     if gameweek_id:
         query = query.filter(Fixture.gameweek_id == gameweek_id)
     
-    fixtures = query.order_by(Fixture.date).offset(skip).limit(limit).all()
+    fixtures = query.order_by(Fixture.kickoff_time).offset(skip).limit(limit).all()
     return fixtures
 
 @router.post("/", response_model=FixtureResponse)
@@ -79,10 +79,9 @@ async def create_fixture(
     """Create a new fixture (admin only)."""
     db_fixture = Fixture(
         gameweek_id=fixture.gameweek_id,
-        league_id=fixture.league_id,  # Add league_id
         home_team=fixture.home_team,
         away_team=fixture.away_team,
-        date=fixture.date
+        kickoff_time=fixture.kickoff_time
     )
     db.add(db_fixture)
     db.commit()
@@ -124,8 +123,8 @@ async def update_fixture(
         fixture.home_team = fixture_update.home_team
     if fixture_update.away_team is not None:
         fixture.away_team = fixture_update.away_team
-    if fixture_update.date is not None:
-        fixture.date = fixture_update.date
+    if fixture_update.kickoff_time is not None:
+        fixture.kickoff_time = fixture_update.kickoff_time
     if fixture_update.completed is not None:
         fixture.completed = fixture_update.completed
     

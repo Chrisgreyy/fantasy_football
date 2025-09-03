@@ -47,7 +47,8 @@ async def get_gameweek(
         )
     
     if include_results:
-        gameweek.league_results = await get_gameweek_results(gameweek_id, db, current_user)
+        results = await get_gameweek_results(gameweek_id, db, current_user)
+        gameweek.league_results = results.league_results
     
     return gameweek
 
